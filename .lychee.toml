@@ -1,0 +1,6 @@
+# Check local files and heading fragments as well as external URLs.
+include_fragments = "full"
+max_concurrency = 4
+max_retries = 3
+timeout = 30
+include_mail = false
