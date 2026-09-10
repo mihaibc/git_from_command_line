@@ -1,601 +1,507 @@
 # Git from the Command Line
 
-A comprehensive reference for Git — from everyday commands to advanced workflows, power tools, and terminal setup.
+Practical Git recipes for everyday developers: inspect changes, collaborate on branches, and recover from mistakes. Start with the short workflow below, or jump directly to the task you need.
 
----
+You need Git installed and a terminal. Examples use a POSIX shell (macOS/Linux, or Git Bash on Windows), a remote named `origin`, and a default branch named `main`. Substitute your actual names. Replace placeholders such as `<repository-url>`, `<commit>`, and `path/to/file` before running commands; angle brackets are not literal shell input. Commands in separate recipes are independent, not one script to run from top to bottom.
 
-## Table of Contents
+Optional tools, aliases, hooks, and Zsh customization live in [Tools and terminal setup](docs/tools-and-terminal.md).
 
-- [Everyday Commands](#everyday-commands)
-- [Advanced Commands](#advanced-commands)
-- [Searching & History](#searching--history)
-- [Branching & Merging](#branching--merging)
-- [Rewriting History](#rewriting-history)
-- [Worktrees](#worktrees)
-- [Submodules](#submodules)
-- [Git Aliases](#git-aliases)
-- [Git Hooks](#git-hooks)
-- [Tools to Enhance Git](#tools-to-enhance-git)
-- [Terminal Setup with Oh My Zsh](#terminal-setup-with-oh-my-zsh)
+## Contents
 
----
+- [Quick start](#quick-start)
+- [Inspect changes](#inspect-changes)
+- [Stage and commit](#stage-and-commit)
+- [Branches and remotes](#branches-and-remotes)
+- [Undo and recover](#undo-and-recover)
+- [Resolve conflicts](#resolve-conflicts)
+- [Advanced recipes](#advanced-recipes)
+- [Further reading](#further-reading)
+- [Contributing and verification](#contributing-and-verification)
 
-## Everyday Commands
+## Quick start
 
-**Remove untracked files that are not added to the staging area**
+### Clone a repository and publish your first branch
 
-```bash
-git clean -fdx
-```
-
-**Pull commits and rebase your changes on top**
+Use an existing repository with at least one commit, write access, and working HTTPS or SSH authentication. If you cannot push to it, fork it on GitHub and clone your fork instead.
 
 ```bash
-git pull --rebase --autostash
+git clone <repository-url> my-project
+cd my-project
+git status
+git switch -c feature/my-change
 ```
 
-**List all the commands that were executed**
+If Git does not already know your author identity, set it for this clone. Use the email you want recorded in commits (a GitHub-provided private email is also an option).
 
 ```bash
-git reflog
+git config user.name "Your Name"
+git config user.email "you@example.com"
 ```
 
-**Reset unpushed commits**
+Edit a file in your editor, then inspect and commit that specific file:
 
 ```bash
-git reset HEAD~1 --soft   # keep changes staged
-git reset HEAD~1 --hard   # discard changes entirely
+git diff -- path/to/file
+git add path/to/file
+git diff --staged
+git commit -m "Describe the change"
+git push -u origin feature/my-change
 ```
-*A commit hash can be used instead of `HEAD~1` to reset to a specific commit.*
 
-**Amend the last unpushed commit**
+Your branch now exists remotely and tracks its counterpart. Open the repository on GitHub and create a pull request into `main`. Check the staged diff before committing to avoid including unrelated work or secrets.
+
+Plain `git config` writes settings for this clone. Those settings are not shared by committing files; `--global` instead changes your defaults across repositories.
+
+## Inspect changes
+
+### See what is modified and what will be committed
 
 ```bash
-git commit --amend          # add staged files to the last commit
-git commit --amend -m "New message"  # change the last commit message
-git commit --amend --no-edit         # amend without changing the message
+git status --short --branch
+git diff                     # unstaged changes to tracked files
+git diff --staged            # changes staged for the next commit
+git show                    # latest commit and its patch
 ```
 
-**Stage parts of a file interactively (hunk by hunk)**
+Untracked files appear in status but not in a normal diff. Review their contents before staging them.
+
+### Compare branches or inspect an older file
 
 ```bash
-git add -p
+git diff main feature/my-change           # compare the branch tips
+git diff main...feature/my-change         # changes from the merge base to feature
+git show <commit>:path/to/file            # print the committed file
 ```
 
-**Show what changed in the last commit**
+The three-dot form helps review what a feature branch introduced since its common ancestor with `main`. Neither command changes files. See [git diff](https://git-scm.com/docs/git-diff).
 
-```bash
-git show
-git show HEAD~2             # two commits ago
-git show <commit>:<file>    # specific file at a specific commit
-```
-
-**Compare working tree, staging area, and commits**
-
-```bash
-git diff                   # unstaged changes
-git diff --staged          # staged changes (about to be committed)
-git diff main..feature     # difference between two branches
-git diff HEAD~3            # changes since 3 commits ago
-```
-
----
-
-## Advanced Commands
-
-### Stashing
-
-**Stash with a descriptive name**
-
-```bash
-git stash push -m "WIP: login form validation"
-git stash list
-git stash pop              # apply and drop the latest stash
-git stash apply stash@{2} # apply a specific stash without dropping it
-git stash drop stash@{0}  # delete a specific stash
-```
-
-**Stash only unstaged changes (keep staged work intact)**
-
-```bash
-git stash push --keep-index
-```
-
-**Stash including untracked files**
-
-```bash
-git stash push -u
-```
-
-### Cherry-pick
-
-**Apply a specific commit from another branch**
-
-```bash
-git cherry-pick <commit-hash>
-git cherry-pick <hash1>..<hash2>   # apply a range of commits
-git cherry-pick --no-commit <hash> # apply changes without committing
-```
-
-### Bisect — Find the Commit That Introduced a Bug
-
-```bash
-git bisect start
-git bisect bad                     # current commit is broken
-git bisect good v1.2.0             # last known good state
-# Git checks out a midpoint — test it, then mark it:
-git bisect good                    # or: git bisect bad
-# Repeat until the culprit is found, then:
-git bisect reset
-```
-
-**Automate bisect with a test script**
-
-```bash
-git bisect run npm test            # any command that exits 0 (pass) or 1 (fail)
-```
-
-### Fixup Commits
-
-Create a commit that is intended to be squashed into an earlier one:
-
-```bash
-git commit --fixup <commit-hash>
-git rebase -i --autosquash HEAD~5  # squash fixups automatically
-```
-
-### Sparse Checkout — Work with a Subset of a Large Repo
-
-```bash
-git clone --filter=blob:none --sparse <url>
-cd repo
-git sparse-checkout set src/frontend docs
-```
-
-### Signing Commits
-
-```bash
-git config --global user.signingkey <GPG-KEY-ID>
-git config --global commit.gpgsign true
-git commit -S -m "Signed commit"
-git log --show-signature
-```
-
-### Git Notes — Attach Metadata Without Changing History
-
-```bash
-git notes add -m "Reviewed by Alice" <commit>
-git log --show-notes
-```
-
----
-
-## Searching & History
-
-**Search commit messages**
-
-```bash
-git log --all --grep="login bug"
-```
-
-**Search for when a string was added or removed (pickaxe)**
-
-```bash
-git log -S "functionName"          # commits that added/removed the exact string
-git log -G "regex.*pattern"        # commits where diff matches a regex
-```
-
-**Show the full history of a file, including renames**
-
-```bash
-git log --follow -p -- path/to/file
-```
-
-**Find who last changed each line of a file**
-
-```bash
-git blame -w -C -C -C path/to/file
-# -w ignores whitespace, -C -C -C tracks copies across files
-```
-
-**Ignore a bulk-formatting commit in blame**
-
-```bash
-echo "<formatting-commit-hash>" >> .git-blame-ignore-revs
-git blame --ignore-revs-file .git-blame-ignore-revs path/to/file
-# Add this to the repo so everyone benefits:
-git config blame.ignoreRevsFile .git-blame-ignore-revs
-```
-
-**Search file contents across the entire repo**
-
-```bash
-git grep "TODO" -- "*.ts"
-git grep -n "apiKey"               # with line numbers
-```
-
-**Pretty log with graph**
+### Find a change in history
 
 ```bash
 git log --oneline --graph --decorate --all
+git log --all --grep="login bug"
+git log -S "functionName" -- path/to/file
+git log -G "regex.*pattern" -- path/to/file
+git log --follow -p -- path/to/file
 ```
 
-**Log a specific file**
+`-S` finds commits that change the number of occurrences of a string; `-G` matches added or removed lines against a regex. `--follow` follows one file through renames. See [git log](https://git-scm.com/docs/git-log).
+
+### Search tracked files and explain a line
 
 ```bash
-git log --stat -- path/to/file
+git grep -n "TODO" -- '*.ts'
+git blame -w path/to/file
 ```
 
----
+`git grep` searches tracked working-tree files by default. Blame shows the last commit affecting each line; `-w` ignores whitespace differences.
 
-## Branching & Merging
-
-**Create and switch to a new branch**
+To ignore a known bulk-formatting commit, put its full hash on a line in `.git-blame-ignore-revs`, commit that file, and enable it in each clone:
 
 ```bash
-git switch -c feature/my-feature   # modern syntax
-git checkout -b feature/my-feature # classic syntax
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
-**Rename the current branch**
+The file is shared; the configuration is not. See [git blame](https://git-scm.com/docs/git-blame).
+
+## Stage and commit
+
+### Stage only part of your changes
+
+With edits to an already tracked file:
+
+```bash
+git add -p -- path/to/file
+git diff --staged
+git commit -m "Describe one logical change"
+```
+
+Choose `y` to stage a hunk, `n` to leave it unstaged, or `s` to split it when possible. Other edits remain in your working tree. See [interactive staging](https://git-scm.com/docs/git-add).
+
+### Unstage a file without losing changes
+
+```bash
+git restore --staged -- path/to/file
+```
+
+This resets that index entry to `HEAD`, keeping your working file intact. It requires an existing commit. See [git restore](https://git-scm.com/docs/git-restore).
+
+### Amend your last local commit
+
+Use this only for a commit you have not shared. First check that the index contains only changes intended for that commit.
+
+```bash
+git add path/to/file
+git diff --staged
+git commit --amend --no-edit
+```
+
+This replaces the last commit while retaining its message. To edit only the message, leave the index clean and run `git commit --amend`. Amending changes the commit ID; see [git commit](https://git-scm.com/docs/git-commit).
+
+## Branches and remotes
+
+### Create a branch from an up-to-date main
+
+Commit or stash current work first. Then:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c feature/my-change
+```
+
+If `--ff-only` refuses because histories diverged, inspect `git log --oneline --graph --all` and choose a merge or rebase deliberately. Do not reset your branch just to silence the error.
+
+### Check out a remote branch
+
+After fetching, create a local tracking branch that does not already exist:
+
+```bash
+git fetch origin
+git switch --track origin/feature/my-change
+git branch -vv
+```
+
+If the local branch already exists, use `git switch feature/my-change`. See [git switch](https://git-scm.com/docs/git-switch).
+
+### Bring main into your feature branch
+
+With a clean working tree on the feature branch:
+
+```bash
+git fetch origin
+git merge origin/main
+```
+
+This preserves existing commits and may create a merge commit. Follow [Resolve conflicts](#resolve-conflicts) if needed. For unpublished commits, rebasing is another option described under [Clean up local commits](#clean-up-local-commits).
+
+### Rename or remove a finished branch
+
+Rename your current local branch:
 
 ```bash
 git branch -m new-name
 ```
 
-**Delete a remote branch**
+To remove an already merged local branch, first switch away from it:
 
 ```bash
-git push origin --delete feature/old-branch
+git switch main
+git branch -d feature/my-change
 ```
 
-**Track a remote branch**
+If Git refuses, inspect what is unmerged instead of forcing deletion. Deleting a branch does not merge its work.
+
+**Remote deletion:** after confirming the branch is no longer needed by collaborators, this removes it from the server:
 
 ```bash
-git branch --set-upstream-to=origin/main main
+git push origin --delete feature/my-change
 ```
 
-**Merge with a commit even when fast-forward is possible**
-
-```bash
-git merge --no-ff feature/my-feature
-```
-
-**Merge strategies**
-
-```bash
-git merge -X ours feature/conflicting   # prefer our changes on conflict
-git merge -X theirs feature/conflicting # prefer their changes on conflict
-```
-
-**Prune deleted remote branches from your local list**
+Refresh your remote-tracking references afterward:
 
 ```bash
 git fetch --prune
-# or set it automatically:
-git config --global fetch.prune true
 ```
 
----
+Pruning removes stale remote-tracking references, not your local branches. See [git fetch](https://git-scm.com/docs/git-fetch).
 
-## Rewriting History
+## Undo and recover
 
-**Interactive rebase — reorder, squash, edit, or drop commits**
+### Choose the right kind of undo
+
+| What you want | Use | Effect |
+| --- | --- | --- |
+| Keep edits, undo staging | `git restore --staged -- path/to/file` | Changes the index only |
+| Discard unstaged edits | `git restore -- path/to/file` | Overwrites the file from the index |
+| Undo the last local commit, keep edits | `git reset --soft HEAD~1` | Moves the branch back; keeps index and files |
+| Undo a published commit | `git revert <commit>` | Adds a new inverse commit |
+| Find a previous local branch position | `git reflog` | Shows local reference updates |
+
+Read the corresponding recipe before running an undo command.
+
+### Discard edits to one tracked file
+
+**Destructive:** this permanently discards unstaged changes in the selected file. Staged changes remain. Inspect `git diff -- path/to/file` and save any work you want first.
 
 ```bash
-git rebase -i HEAD~5       # last 5 commits
-git rebase -i main         # all commits since branching off main
+git restore -- path/to/file
 ```
 
-Inside the editor, each commit can be marked:
-| Command | Effect |
-|---------|--------|
-| `pick`  | keep commit as-is |
-| `reword`| keep commit, edit message |
-| `edit`  | pause to amend the commit |
-| `squash`| merge into previous commit |
-| `fixup` | like squash, discard message |
-| `drop`  | remove the commit entirely |
+### Undo your last local commit but keep its changes
 
-**Rebase onto a different base**
+Use this on an unpublished commit with a parent (not the repository's first commit):
 
 ```bash
-git rebase --onto main feature-base feature-branch
+git reset --soft HEAD~1
+git diff --staged
 ```
 
-**Abort or continue a rebase after resolving conflicts**
+Your branch moves back one commit. Its changes remain staged, along with anything already staged. Your working files are unchanged. See [git reset](https://git-scm.com/docs/git-reset).
+
+### Discard the last local commit and tracked changes
+
+**Destructive:** only use this when you intentionally want to discard the last unpublished commit plus staged and unstaged tracked changes. Untracked files obstructing tracked paths can also be deleted. Save anything needed first. The commit must have a parent.
 
 ```bash
-git rebase --abort
-git rebase --continue
+git reset --hard HEAD~1
 ```
 
-**Filter-repo — rewrite history at scale** *(replaces `filter-branch`)*
+Reflog may recover the old commit, but it is not a backup of uncommitted edits.
+
+### Revert a commit that other people may already use
+
+With a clean working tree, choose an ordinary, non-merge commit:
 
 ```bash
-pip install git-filter-repo
-git filter-repo --path src/legacy --invert-paths   # remove a directory from all history
-git filter-repo --replace-text replacements.txt    # scrub secrets from history
+git revert <commit>
 ```
 
----
+Git adds a new commit reversing its changes, preserving shared history. If conflicts occur, edit the files, stage resolutions, then run `git revert --continue`; use `git revert --abort` to cancel. Reverting a merge requires choosing a mainline parent; consult [git revert](https://git-scm.com/docs/git-revert) before doing so.
 
-## Worktrees
+### Recover a commit after a reset
 
-Check out multiple branches simultaneously in separate directories — no stashing needed.
+```bash
+git reflog
+```
+
+Find the commit you need, inspect it, and give it a branch name:
+
+```bash
+git show <commit>
+git branch recovered-work <commit>
+```
+
+This preserves the recovered commit without overwriting current files. Switch to `recovered-work` when your working tree is clean.
+
+Reflog records local reference updates, not every executed command. Entries expire, are not transferred when cloning, and cannot recover arbitrary untracked or uncommitted files. See [git reflog](https://git-scm.com/docs/git-reflog).
+
+### Preview and remove untracked files
+
+Preview first, from the repository root if you want to inspect the entire working tree:
+
+```bash
+git clean -nd
+```
+
+**Destructive:** after reviewing the exact list and saving anything needed, remove untracked files and directories:
+
+```bash
+git clean -fd
+```
+
+Ignored files are preserved by default. To include ignored files, preview separately:
+
+```bash
+git clean -ndx
+```
+
+**Destructive, including ignored files:** only after inspecting that preview, the following can delete local `.env` files, dependencies, build output, and other ignored data:
+
+```bash
+git clean -fdx
+```
+
+Git generally cannot recover files it never tracked. See [git clean](https://git-scm.com/docs/git-clean).
+
+## Resolve conflicts
+
+### Finish or cancel a merge, rebase, or cherry-pick
+
+Start these operations with a clean working tree so aborting has a predictable starting point. When Git stops for conflicts:
+
+1. Run `git status` to see the operation and affected files.
+2. Edit each conflicted file: choose the intended result and remove conflict markers. For an intended deletion, use `git rm -- path/to/file` instead of staging it with `git add`.
+3. Stage resolved files with `git add path/to/file`.
+4. Review `git diff --staged`, check `git diff --staged --check`, and run the project's relevant tests.
+5. Run **one** matching continuation command below. Rebase and cherry-pick may stop again at another commit; repeat as necessary.
+
+| Operation | Continue after resolving | Cancel instead |
+| --- | --- | --- |
+| Merge | `git merge --continue` | `git merge --abort` |
+| Rebase | `git rebase --continue` | `git rebase --abort` |
+| Cherry-pick | `git cherry-pick --continue` | `git cherry-pick --abort` |
+
+Cancellation abandons resolutions made during the operation. Do not blindly choose “ours” or “theirs”: their interpretation during a rebase is easy to confuse with normal merging. See [git merge](https://git-scm.com/docs/git-merge), [git rebase](https://git-scm.com/docs/git-rebase), and [git cherry-pick](https://git-scm.com/docs/git-cherry-pick).
+
+## Advanced recipes
+
+### Put unfinished work aside
+
+```bash
+git stash push -u -m "WIP: login form"
+git stash list
+```
+
+`-u` includes untracked files, but not ignored files. Restore onto a clean working tree when possible:
+
+```bash
+git stash apply 'stash@{0}'
+git status
+```
+
+`apply` retains the stash so you can inspect and test the result. It does not restore the original staging arrangement by default; `--index` attempts that too. If there are conflicts, resolve them manually; there is no `git stash --abort`. Keep the stash until your work is safe.
+
+After verifying restoration, recheck `git stash list` and delete only the intended entry:
+
+```bash
+git stash drop 'stash@{0}'
+```
+
+Dropping removes that saved copy. Alternatively, `git stash pop` applies and removes a stash on success; it retains it when applying conflicts.
+
+To leave staged changes in place while putting other edits aside:
+
+```bash
+git stash push --keep-index
+```
+
+The stash still records index state; “keep index” does not mean the stash contains only unstaged changes. See [git stash](https://git-scm.com/docs/git-stash).
+
+### Apply selected commits from another branch
+
+With a clean working tree on the receiving branch:
+
+```bash
+git cherry-pick <commit>
+```
+
+This creates a new commit applying the selected change. For a simple linear range, inspect the selection before applying it:
+
+```bash
+git log --oneline --reverse <start>..<end>
+git cherry-pick <start>..<end>
+```
+
+The range excludes `<start>` and includes `<end>`; more generally, it selects commits reachable from the end but not the start. Merge commits require additional decisions. Use the [conflict workflow](#resolve-conflicts) if needed. See [git cherry-pick](https://git-scm.com/docs/git-cherry-pick).
+
+### Find the commit that introduced a bug
+
+Start with a clean working tree, a reproducible failure, and a known good commit or tag:
+
+```bash
+git bisect start
+git bisect bad
+git bisect good <known-good-commit>
+```
+
+Git checks out a candidate. Test it and run **one** verdict:
+
+```bash
+git bisect good
+```
+
+If it fails, use `git bisect bad` instead; if you cannot test that revision, use `git bisect skip`. Repeat until Git identifies the first bad commit or reports ambiguity.
+
+Always return to your starting branch afterward:
+
+```bash
+git bisect reset
+```
+
+For automation, run `git bisect run <test-command>` after marking the endpoints. Exit `0` means good, `1`–`127` except `125` mean bad, `125` skips a revision, and other exit codes abort. Ensure the command exists across the tested history; a missing command can be misclassified as a bad commit. See [git bisect](https://git-scm.com/docs/git-bisect).
+
+### Clean up local commits
+
+**Rewrites history:** use on unpublished commits. Amending, rebasing, and autosquashing replace commit IDs. Coordinate any shared-history rewrite with collaborators; do not force-push simply to bypass a rejected push.
+
+With a clean working tree on a simple feature branch based on `main`:
+
+```bash
+git rebase -i main
+```
+
+The editor lists commits to replay. Use `reword` to change a message, `squash` to combine with the preceding commit, `fixup` to combine and discard its message, or `drop` to remove a commit. Review the result and run tests. Use the [conflict workflow](#resolve-conflicts) to continue or abort.
+
+For a correction intended for a specific local commit, stage the correction and run:
+
+```bash
+git commit --fixup <commit>
+git rebase -i --autosquash main
+```
+
+The target must be among the commits selected for replay. Autosquash arranges the fixup in the editor; review and save the todo list to proceed. See [git rebase](https://git-scm.com/docs/git-rebase).
+
+### Work on two branches in separate directories
+
+For an existing branch that is not already checked out in another worktree:
 
 ```bash
 git worktree add ../hotfix hotfix/critical-bug
+```
+
+Alternatively, create a new branch from `main` (use a fresh path and branch name):
+
+```bash
+git worktree add -b hotfix/new-fix ../new-fix main
+```
+
+Each directory has its own working files and index. List them with:
+
+```bash
 git worktree list
-git worktree remove ../hotfix
 ```
 
----
+When finished, commit or save work and run `git worktree remove ../hotfix` from the original checkout. Removal deletes that working directory, retains the branch, and normally refuses dirty worktrees. Do not force removal to bypass unsaved work. See [git worktree](https://git-scm.com/docs/git-worktree).
 
-## Submodules
+### Check out only part of a large repository
 
-**Add a submodule**
+For a server supporting partial clone:
 
 ```bash
-git submodule add https://github.com/org/lib libs/lib
+git clone --filter=blob:none --sparse <repository-url> large-project
+cd large-project
+git sparse-checkout set src/frontend docs
 ```
 
-**Clone a repo with all its submodules**
+Substitute real directory paths. Cone mode includes the selected directories and some ancestor/root files; other files can be fetched on demand. This reduces the checkout, not your access to repository history. See [git sparse-checkout](https://git-scm.com/docs/git-sparse-checkout).
+
+### Clone and update submodules deliberately
+
+To get the revisions recorded by a parent repository:
 
 ```bash
-git clone --recurse-submodules <url>
-# Or, after a plain clone:
+git clone --recurse-submodules <repository-url> my-project
+```
+
+For an existing clone, including after pulling changes to its recorded submodule revisions:
+
+```bash
 git submodule update --init --recursive
 ```
 
-**Update all submodules to their latest remote commit**
+Save any edits inside submodules before updating. The command checks out the commits recorded by the parent, typically in detached HEAD state.
+
+To deliberately advance one submodule to its configured remote branch, start with clean parent and submodule working trees:
 
 ```bash
-git submodule update --remote --merge
+git submodule update --remote --merge -- libs/lib
+git diff --submodule=log
+git add libs/lib
+git commit -m "Update lib submodule"
 ```
 
----
+Substitute the actual submodule path, inspect changes, and test before committing. The parent records a commit pointer, not a copy of the submodule's files. If your update creates a local merge commit inside the submodule, publish it to an accessible submodule remote before publishing the parent pointer. See [git submodule](https://git-scm.com/docs/git-submodule).
 
-## Git Aliases
+### Respond to an exposed secret
 
-Add these to `~/.gitconfig` under `[alias]`:
+Revoke or rotate the secret first. Removing a file or rewriting Git history does not invalidate credentials or erase copies in forks, other clones, or caches.
 
-```ini
-[alias]
-  s       = status -sb
-  l       = log --oneline --graph --decorate --all
-  ll      = log --pretty=format:"%C(yellow)%h%Creset %ad %C(cyan)%an%Creset %s" --date=short
-  co      = checkout
-  sw      = switch
-  br      = branch -vv
-  st      = stash
-  undo    = reset HEAD~1 --soft
-  aliases = config --get-regexp alias
-  wip     = !git add -A && git commit -m "WIP"
-  unwip   = reset HEAD~1 --soft
-  ignored = ls-files --others --ignored --exclude-standard
-  contributors = shortlog --summary --numbered --email
-```
+After containing the exposure, follow GitHub's [sensitive-data removal procedure](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository) and the [git-filter-repo instructions](https://github.com/newren/git-filter-repo). Work from a fresh clone and coordinate the history rewrite and collaborator cleanup. This needs a repository-specific procedure, not a one-line cleanup command.
 
-**Use them from the shell:**
+## Further reading
 
-```bash
-git l                        # pretty graph log
-git ll                       # detailed log with date and author
-git undo                     # soft-reset the last commit
-git wip                      # quickly save work-in-progress
-git contributors             # who has committed the most
-```
+- [Pro Git](https://git-scm.com/book/en/v2) — concepts and deeper explanations.
+- [Git command reference](https://git-scm.com/docs) — exact options and behavior.
+- [GitHub pull request guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) — publish changes for review.
+- [Tools and terminal setup](docs/tools-and-terminal.md) — optional aliases, hooks, and integrations.
 
----
+## Contributing and verification
 
-## Git Hooks
+Corrections and focused recipes are welcome. Include the use case, prerequisites, expected result, and an official source for subtle behavior. Test commands that change files or history in disposable repositories; explain data loss and shared-history effects before the command. Prefer improving an existing recipe over expanding the tool list.
 
-Hooks are scripts that run automatically at key points. They live in `.git/hooks/` or, for shared hooks, in a directory committed to the repo.
+Documentation CI checks Markdown formatting and links on pull requests and pushes to `main`. Run the same lint locally with `npx --yes markdownlint-cli2@0.18.1 README.md 'docs/**/*.md'`; run links with `lychee --config .lychee.toml README.md 'docs/**/*.md'` after installing [lychee](https://github.com/lycheeverse/lychee). Investigate external-link failures before adding exclusions.
 
-**Set a shared hooks directory (committed to the repo)**
+Verification details are recorded in [the validation notes](docs/verification.md). Examples are not a guarantee for every Git version, shell, server configuration, or repository history.
 
-```bash
-git config core.hooksPath .githooks
-```
-
-**Common hook examples**
-
-`pre-commit` — lint and format before every commit:
-
-```bash
-#!/bin/sh
-npm run lint --silent || exit 1
-```
-
-`commit-msg` — enforce conventional commit format:
-
-```bash
-#!/bin/sh
-grep -qE "^(feat|fix|docs|chore|refactor|test|style)(\(.+\))?: .{1,72}" "$1" \
-  || { echo "Commit message must follow Conventional Commits"; exit 1; }
-```
-
-`pre-push` — run tests before pushing:
-
-```bash
-#!/bin/sh
-npm test || exit 1
-```
-
-**Recommended tool: [Husky](https://github.com/typicode/husky)**  
-Manages Git hooks via npm scripts, ideal for JavaScript/TypeScript projects.
-
----
-
-## Tools to Enhance Git
-
-### TUIs (Terminal UIs)
-
-| Tool | Description | Install |
-|------|-------------|---------|
-| [lazygit](https://github.com/jesseduffield/lazygit) | Fast, keyboard-driven Git UI in the terminal | `brew install lazygit` |
-| [tig](https://github.com/jonas/tig) | Ncurses-based text-mode Git browser | `brew install tig` |
-| [gitui](https://github.com/extrawurst/gitui) | Blazing-fast TUI written in Rust | `brew install gitui` |
-
-### Better Diffs
-
-| Tool | Description | Install |
-|------|-------------|---------|
-| [delta](https://github.com/dandavison/delta) | Syntax-highlighted, side-by-side diffs | `brew install git-delta` |
-| [difftastic](https://github.com/Wilfred/difftastic) | Structural diffs that understand syntax | `brew install difftastic` |
-
-**Configure delta as the default pager:**
-
-```ini
-# ~/.gitconfig
-[core]
-  pager = delta
-[delta]
-  navigate = true
-  side-by-side = true
-  line-numbers = true
-[interactive]
-  diffFilter = delta --color-only
-```
-
-### GitHub / Forge CLIs
-
-| Tool | Description | Install |
-|------|-------------|---------|
-| [gh](https://github.com/cli/cli) | Official GitHub CLI — PRs, issues, actions, and more | `brew install gh` |
-| [lab](https://github.com/zaquestion/lab) | GitLab CLI wrapper | `brew install lab` |
-
-**Useful `gh` commands:**
-
-```bash
-gh pr create --fill                      # open a PR from current branch
-gh pr checkout 123                       # check out a PR locally
-gh pr view --web                         # open the PR in the browser
-gh run watch                             # watch CI run in real time
-gh issue list --assignee @me             # your open issues
-gh repo clone org/repo                   # clone any repo
-```
-
-### Productivity & Extras
-
-| Tool | Description | Install |
-|------|-------------|---------|
-| [git-extras](https://github.com/tj/git-extras) | 60+ extra git commands (`git summary`, `git effort`, `git obliterate`, …) | `brew install git-extras` |
-| [forgit](https://github.com/wfxr/forgit) | fzf-powered interactive git commands | See repo |
-| [git-absorb](https://github.com/tummychow/git-absorb) | Automatically absorb staged changes into the right commit | `brew install git-absorb` |
-| [git-filter-repo](https://github.com/newren/git-filter-repo) | Fast, safe history rewriting | `brew install git-filter-repo` |
-| [commitizen](https://github.com/commitizen/cz-cli) | Interactive Conventional Commits prompt | `npm install -g commitizen` |
-| [git-branchless](https://github.com/arxanas/git-branchless) | Stacked diffs and advanced history manipulation | `brew install git-branchless` |
-
-### Editor Integrations
-
-| Tool | Description |
-|------|-------------|
-| [GitLens](https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens) | VS Code — inline blame, history, PR annotations |
-| [lazygit in Neovim](https://github.com/kdheepak/lazygit.nvim) | Float lazygit inside Neovim |
-
----
-
-## Terminal Setup with Oh My Zsh
-
-[Oh My Zsh](https://ohmyz.sh) supercharges your terminal with themes, plugins, and hundreds of Git-aware shortcuts.
-
-### Install
-
-```bash
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-```
-
-### Essential Plugins
-
-Enable plugins in `~/.zshrc`:
-
-```bash
-plugins=(git gitfast git-extras z zsh-autosuggestions zsh-syntax-highlighting fzf)
-```
-
-**Install the community plugins first:**
-
-```bash
-# zsh-autosuggestions
-git clone https://github.com/zsh-users/zsh-autosuggestions \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-
-# zsh-syntax-highlighting
-git clone https://github.com/zsh-users/zsh-syntax-highlighting \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
-```
-
-### The Built-in `git` Plugin
-
-The Oh My Zsh `git` plugin provides ~150 aliases. Key ones:
-
-| Alias | Command |
-|-------|---------|
-| `g` | `git` |
-| `ga` | `git add` |
-| `gaa` | `git add --all` |
-| `gc` | `git commit --verbose` |
-| `gc!` | `git commit --verbose --amend` |
-| `gcm` | `git checkout main` |
-| `gco` | `git checkout` |
-| `gd` | `git diff` |
-| `gds` | `git diff --staged` |
-| `gf` | `git fetch` |
-| `gl` | `git pull` |
-| `gp` | `git push` |
-| `grb` | `git rebase` |
-| `grbi` | `git rebase -i` |
-| `gst` | `git status` |
-| `gsta` | `git stash push` |
-| `gstp` | `git stash pop` |
-| `glol` | pretty graph log |
-| `glog` | verbose graph log |
-
-Full list: `alias | grep "^g"` or see the [plugin source](https://github.com/ohmyzsh/ohmyzsh/blob/master/plugins/git/git.plugin.zsh).
-
-### Recommended Theme: Powerlevel10k
-
-A fast, richly-configurable prompt that shows Git branch, status, dirty state, and more at a glance.
-
-```bash
-git clone --depth=1 https://github.com/romkatv/powerlevel10k \
-  ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
-
-# In ~/.zshrc:
-ZSH_THEME="powerlevel10k/powerlevel10k"
-```
-
-Then restart your shell and run `p10k configure` for the interactive wizard.
-
-### FZF — Fuzzy Finder for Everything
-
-```bash
-brew install fzf
-$(brew --prefix)/opt/fzf/install
-```
-
-With the `fzf` plugin active, you get:
-- `Ctrl+R` — fuzzy search command history
-- `Ctrl+T` — fuzzy search files
-- `Alt+C` — fuzzy cd into subdirectories
-
-**Combine with forgit for fuzzy Git:**
-
-```bash
-glo   # fuzzy log
-gad   # fuzzy git add
-gcf   # fuzzy checkout file
-gbd   # fuzzy branch delete
-```
-
----
-
-## Further Reading
-
-- [Pro Git Book](https://git-scm.com/book/en/v2) — free, comprehensive, official
-- [Dangit, Git!?!](https://dangitgit.com) — plain-English fixes for common mistakes
-- [Conventional Commits](https://www.conventionalcommits.org) — a commit message standard
-- [Oh My Zsh Wiki](https://github.com/ohmyzsh/ohmyzsh/wiki)
-- [Powerlevel10k](https://github.com/romkatv/powerlevel10k)
+Licensed under [Apache-2.0](LICENSE).
